@@ -19,24 +19,7 @@
   Arduino IDE 1.8.5
 
 	SparkFun code, firmware, and software is released under the MIT License.
-
-	Permission is hereby granted, free of charge, to any person obtaining a copy
-	of this software and associated documentation files (the "Software"), to deal
-	in the Software without restriction, including without limitation the rights
-	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-	copies of the Software, and to permit persons to whom the Software is
-	furnished to do so, subject to the following conditions:
-
-	The above copyright notice and this permission notice shall be included in
-	all copies or substantial portions of the Software.
-
-	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-	THE SOFTWARE.
+	Please see LICENSE.md for further details.
 */
 
 #include "BNO080.h"
@@ -67,36 +50,32 @@ boolean BNO080::begin(uint8_t deviceAddress, TwoWire &wirePort, uint8_t intPin)
 	//Transmit packet on channel 2, 2 bytes
 	sendPacket(CHANNEL_CONTROL, 2);
 
-	uint32_t tInitialResetTimeMS = millis();
-	bool tBoardInfoReceived = false;
-
-	// Wait max 2.5s for the product_id_response and ignore other packets received during that time.
-	while (millis() - tInitialResetTimeMS < 2500 && (!tBoardInfoReceived)) {
-		receivePacket();
-		if (shtpHeader[2] == 2 && shtpData[0] == SHTP_REPORT_PRODUCT_ID_RESPONSE) {
-			tBoardInfoReceived = true;
-			swMajor = shtpData[2];
-			swMinor = shtpData[3];
-			swPartNumber = ((uint32_t)shtpData[7] << 24) | ((uint32_t)shtpData[6] << 16) | ((uint32_t)shtpData[5] << 8) | ((uint32_t)shtpData[4]);
-			swBuildNumber = ((uint32_t)shtpData[11] << 24) | ((uint32_t)shtpData[10] << 16) | ((uint32_t)shtpData[9] << 8) | ((uint32_t)shtpData[8]);
-			swVersionPatch = ((uint16_t)shtpData[13] << 8) | ((uint16_t)shtpData[12]);
+	//Now we wait for response
+	if (receivePacket() == true)
+	{
+		if (shtpData[0] == SHTP_REPORT_PRODUCT_ID_RESPONSE)
+		{
 			if (_printDebug == true)
 			{
 				_debugPort->print(F("SW Version Major: 0x"));
-				_debugPort->print(swMajor, HEX);
+				_debugPort->print(shtpData[2], HEX);
 				_debugPort->print(F(" SW Version Minor: 0x"));
-				_debugPort->print(swMinor, HEX);
+				_debugPort->print(shtpData[3], HEX);
+				uint32_t SW_Part_Number = ((uint32_t)shtpData[7] << 24) | ((uint32_t)shtpData[6] << 16) | ((uint32_t)shtpData[5] << 8) | ((uint32_t)shtpData[4]);
 				_debugPort->print(F(" SW Part Number: 0x"));
-				_debugPort->print(swPartNumber, HEX);
+				_debugPort->print(SW_Part_Number, HEX);
+				uint32_t SW_Build_Number = ((uint32_t)shtpData[11] << 24) | ((uint32_t)shtpData[10] << 16) | ((uint32_t)shtpData[9] << 8) | ((uint32_t)shtpData[8]);
 				_debugPort->print(F(" SW Build Number: 0x"));
-				_debugPort->print(swBuildNumber, HEX);
+				_debugPort->print(SW_Build_Number, HEX);
+				uint16_t SW_Version_Patch = ((uint16_t)shtpData[13] << 8) | ((uint16_t)shtpData[12]);
 				_debugPort->print(F(" SW Version Patch: 0x"));
-				_debugPort->println(swVersionPatch, HEX);
+				_debugPort->println(SW_Version_Patch, HEX);
 			}
+			return (true);
 		}
 	}
 
-	return tBoardInfoReceived;
+	return (false); //Something went wrong
 }
 
 boolean BNO080::beginSPI(uint8_t user_CSPin, uint8_t user_WAKPin, uint8_t user_INTPin, uint8_t user_RSTPin, uint32_t spiPortSpeed, SPIClass &spiPort)
@@ -220,10 +199,10 @@ uint16_t BNO080::getReadings(void)
 		{
 			return parseCommandReport(); //This will update responses to commands, calibrationStatus, etc.
 		}
-		else if(shtpHeader[2] == CHANNEL_GYRO)
-		{
-		return parseInputReport(); //This will update the rawAccelX, etc variables depending on which feature report is found
-		}
+    else if(shtpHeader[2] == CHANNEL_GYRO)
+    {
+      return parseInputReport(); //This will update the rawAccelX, etc variables depending on which feature report is found
+    }
 	}
 	return 0;
 }
@@ -314,6 +293,7 @@ uint16_t BNO080::parseInputReport(void)
 	uint16_t data3 = (uint16_t)shtpData[5 + 9] << 8 | shtpData[5 + 8];
 	uint16_t data4 = 0;
 	uint16_t data5 = 0; //We would need to change this to uin32_t to capture time stamp value on Raw Accel/Gyro/Mag reports
+	uint16_t data6 = 0;
 
 	if (dataLength - 5 > 9)
 	{
@@ -323,11 +303,15 @@ uint16_t BNO080::parseInputReport(void)
 	{
 		data5 = (uint16_t)shtpData[5 + 13] << 8 | shtpData[5 + 12];
 	}
+	if (dataLength - 5 > 13)
+	{
+		data6 = (uint16_t)shtpData[5 + 15] << 8 | shtpData[5 + 14];
+	}
+
 
 	//Store these generic values to their proper global variable
-	if (shtpData[5] == SENSOR_REPORTID_ACCELEROMETER || shtpData[5] == SENSOR_REPORTID_GRAVITY)
+	if (shtpData[5] == SENSOR_REPORTID_ACCELEROMETER)
 	{
-		hasNewAccel_ = true;
 		accelAccuracy = status;
 		rawAccelX = data1;
 		rawAccelY = data2;
@@ -341,11 +325,21 @@ uint16_t BNO080::parseInputReport(void)
 		rawLinAccelZ = data3;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_GYROSCOPE)
-	{
+	{	
 		gyroAccuracy = status;
 		rawGyroX = data1;
 		rawGyroY = data2;
 		rawGyroZ = data3;
+	}
+	else if (shtpData[5] == SENSOR_REPORTID_UNCALIBRATED_GYRO)
+	{
+		UncalibGyroAccuracy = status;
+		rawUncalibGyroX = data1;
+		rawUncalibGyroY = data2;
+		rawUncalibGyroZ = data3;
+		rawBiasX  = data4;
+		rawBiasY  = data5;
+		rawBiasZ  = data6;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_MAGNETIC_FIELD)
 	{
@@ -359,7 +353,6 @@ uint16_t BNO080::parseInputReport(void)
 		shtpData[5] == SENSOR_REPORTID_AR_VR_STABILIZED_ROTATION_VECTOR ||
 		shtpData[5] == SENSOR_REPORTID_AR_VR_STABILIZED_GAME_ROTATION_VECTOR)
 	{
-		hasNewQuaternion = true;
 		quatAccuracy = status;
 		rawQuatI = data1;
 		rawQuatJ = data2;
@@ -369,29 +362,10 @@ uint16_t BNO080::parseInputReport(void)
 		//Only available on rotation vector and ar/vr stabilized rotation vector,
 		// not game rot vector and not ar/vr stabilized rotation vector
 		rawQuatRadianAccuracy = data5;
-
-		if(shtpData[5] == SENSOR_REPORTID_ROTATION_VECTOR || shtpData[5] == SENSOR_REPORTID_AR_VR_STABILIZED_ROTATION_VECTOR) {
-			hasNewMagQuaternion = true;
-			quatMagAccuracy = status;
-			rawMagQuatI = data1;
-			rawMagQuatJ = data2;
-			rawMagQuatK = data3;
-			rawMagQuatReal = data4;
-			rawMagQuatRadianAccuracy = data5;
-		}
-		if(shtpData[5] == SENSOR_REPORTID_GAME_ROTATION_VECTOR || shtpData[5] == SENSOR_REPORTID_AR_VR_STABILIZED_GAME_ROTATION_VECTOR) {
-			hasNewGameQuaternion = true;
-			quatGameAccuracy = status;
-			rawGameQuatI = data1;
-			rawGameQuatJ = data2;
-			rawGameQuatK = data3;
-			rawGameQuatReal = data4;
-		}
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_TAP_DETECTOR)
 	{
 		tapDetector = shtpData[5 + 4]; //Byte 4 only
-		hasNewTap = true;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_STEP_COUNTER)
 	{
@@ -444,6 +418,13 @@ uint16_t BNO080::parseInputReport(void)
 			}
 			calibrationStatus = shtpData[5 + 5]; //R0 - Status (0 = success, non-zero = fail)
 		}
+	}
+	else if(shtpData[5] == SENSOR_REPORTID_GRAVITY)
+	{
+		gravityAccuracy = status;
+		gravityX = data1;
+		gravityY = data2;
+		gravityZ = data3;
 	}
 	else
 	{
@@ -542,50 +523,24 @@ void BNO080::getQuat(float &i, float &j, float &k, float &real, float &radAccura
 	real = qToFloat(rawQuatReal, rotationVector_Q1);
 	radAccuracy = qToFloat(rawQuatRadianAccuracy, rotationVector_Q1);
 	accuracy = quatAccuracy;
-	hasNewQuaternion = false;
-}
-
-void BNO080::getGameQuat(float &i, float &j, float &k, float &real, uint8_t &accuracy)
-{
-	i = qToFloat(rawGameQuatI, rotationVector_Q1);
-	j = qToFloat(rawGameQuatJ, rotationVector_Q1);
-	k = qToFloat(rawGameQuatK, rotationVector_Q1);
-	real = qToFloat(rawGameQuatReal, rotationVector_Q1);
-	accuracy = quatGameAccuracy;
-	hasNewGameQuaternion = false;
-}
-
-void BNO080::getMagQuat(float &i, float &j, float &k, float &real, float &radAccuracy, uint8_t &accuracy)
-{
-	i = qToFloat(rawMagQuatI, rotationVector_Q1);
-	j = qToFloat(rawMagQuatJ, rotationVector_Q1);
-	k = qToFloat(rawMagQuatK, rotationVector_Q1);
-	real = qToFloat(rawMagQuatReal, rotationVector_Q1);
-	radAccuracy = qToFloat(rawMagQuatRadianAccuracy, rotationVector_Q1);
-	accuracy = quatMagAccuracy;
-	hasNewMagQuaternion = false;
-}
-
-bool BNO080::hasNewQuat() {
-	return hasNewQuaternion;
-}
-
-bool BNO080::hasNewGameQuat() {
-	return hasNewGameQuaternion;
-}
-
-bool BNO080::hasNewMagQuat() {
-	return hasNewMagQuaternion;
-}
-
-bool BNO080::hasNewAccel() {
-	return hasNewAccel_;
 }
 
 //Return the rotation vector quaternion I
 float BNO080::getQuatI()
 {
 	float quat = qToFloat(rawQuatI, rotationVector_Q1);
+	if (_printDebug == true)
+	{
+		if ((quat < -1.0) || (quat > 1.0))
+		{
+			_debugPort->print(F("getQuatI: quat: ")); // Debug the occasional non-unitary Quat
+			_debugPort->print(quat, 2);
+			_debugPort->print(F(" rawQuatI: "));
+			_debugPort->print(rawQuatI);
+			_debugPort->print(F(" rotationVector_Q1: "));
+			_debugPort->println(rotationVector_Q1);
+		}
+	}
 	return (quat);
 }
 
@@ -593,6 +548,18 @@ float BNO080::getQuatI()
 float BNO080::getQuatJ()
 {
 	float quat = qToFloat(rawQuatJ, rotationVector_Q1);
+	if (_printDebug == true)
+	{
+		if ((quat < -1.0) || (quat > 1.0)) // Debug the occasional non-unitary Quat
+		{
+			_debugPort->print(F("getQuatJ: quat: "));
+			_debugPort->print(quat, 2);
+			_debugPort->print(F(" rawQuatJ: "));
+			_debugPort->print(rawQuatJ);
+			_debugPort->print(F(" rotationVector_Q1: "));
+			_debugPort->println(rotationVector_Q1);
+		}
+	}
 	return (quat);
 }
 
@@ -600,6 +567,18 @@ float BNO080::getQuatJ()
 float BNO080::getQuatK()
 {
 	float quat = qToFloat(rawQuatK, rotationVector_Q1);
+	if (_printDebug == true)
+	{
+		if ((quat < -1.0) || (quat > 1.0)) // Debug the occasional non-unitary Quat
+		{
+			_debugPort->print(F("getQuatK: quat: "));
+			_debugPort->print(quat, 2);
+			_debugPort->print(F(" rawQuatK: "));
+			_debugPort->print(rawQuatK);
+			_debugPort->print(F(" rotationVector_Q1: "));
+			_debugPort->println(rotationVector_Q1);
+		}
+	}
 	return (quat);
 }
 
@@ -631,7 +610,6 @@ void BNO080::getAccel(float &x, float &y, float &z, uint8_t &accuracy)
 	y = qToFloat(rawAccelY, accelerometer_Q1);
 	z = qToFloat(rawAccelZ, accelerometer_Q1);
 	accuracy = accelAccuracy;
-	hasNewAccel_ = false;
 }
 
 //Return the acceleration component
@@ -737,6 +715,96 @@ uint8_t BNO080::getGyroAccuracy()
 	return (gyroAccuracy);
 }
 
+//Gets the full uncalibrated gyro vector
+//x,y,z,bx,by,bz output floats
+void BNO080::getUncalibratedGyro(float &x, float &y, float &z, float &bx, float &by, float &bz, uint8_t &accuracy)
+{
+	x = qToFloat(rawUncalibGyroX, gyro_Q1);
+	y = qToFloat(rawUncalibGyroY, gyro_Q1);
+	z = qToFloat(rawUncalibGyroZ, gyro_Q1);
+	bx = qToFloat(rawBiasX, gyro_Q1);
+	by = qToFloat(rawBiasY, gyro_Q1);
+	bz = qToFloat(rawBiasZ, gyro_Q1);
+	accuracy = UncalibGyroAccuracy;
+}
+//Return the gyro component
+float BNO080::getUncalibratedGyroX()
+{
+	float gyro = qToFloat(rawUncalibGyroX, gyro_Q1);
+	return (gyro);
+}
+//Return the gyro component
+float BNO080::getUncalibratedGyroY()
+{
+	float gyro = qToFloat(rawUncalibGyroY, gyro_Q1);
+	return (gyro);
+}
+//Return the gyro component
+float BNO080::getUncalibratedGyroZ()
+{
+	float gyro = qToFloat(rawUncalibGyroZ, gyro_Q1);
+	return (gyro);
+}
+//Return the gyro component
+float BNO080::getUncalibratedGyroBiasX()
+{
+	float gyro = qToFloat(rawBiasX, gyro_Q1);
+	return (gyro);
+}
+//Return the gyro component
+float BNO080::getUncalibratedGyroBiasY()
+{
+	float gyro = qToFloat(rawBiasY, gyro_Q1);
+	return (gyro);
+}
+//Return the gyro component
+float BNO080::getUncalibratedGyroBiasZ()
+{
+	float gyro = qToFloat(rawBiasZ, gyro_Q1);
+	return (gyro);
+}
+
+//Return the gyro component
+uint8_t BNO080::getUncalibratedGyroAccuracy()
+{
+	return (UncalibGyroAccuracy);
+}
+
+//Gets the full gravity vector
+//x,y,z output floats
+void BNO080::getGravity(float &x, float &y, float &z, uint8_t &accuracy)
+{
+	x = qToFloat(gravityX, gravity_Q1);
+	y = qToFloat(gravityX, gravity_Q1);
+	z = qToFloat(gravityX, gravity_Q1);
+	accuracy = gravityAccuracy;
+}
+
+float BNO080::getGravityX()
+{
+	float x = qToFloat(gravityX, gravity_Q1);
+	return x;
+}
+
+//Return the gravity component
+float BNO080::getGravityY()
+{
+	float y = qToFloat(gravityY, gravity_Q1);
+	return y;
+}
+
+//Return the gravity component
+float BNO080::getGravityZ()
+{
+	float z = qToFloat(gravityZ, gravity_Q1);
+	return z;
+}
+
+uint8_t BNO080::getGravityAccuracy()
+{
+	return (gravityAccuracy);
+}
+
 //Gets the full mag vector
 //x,y,z output floats
 void BNO080::getMag(float &x, float &y, float &z, uint8_t &accuracy)
@@ -809,12 +877,7 @@ uint8_t BNO080::getTapDetector()
 {
 	uint8_t previousTapDetector = tapDetector;
 	tapDetector = 0; //Reset so user code sees exactly one tap
-	hasNewTap = false;
 	return (previousTapDetector);
-}
-
-bool BNO080::getTapDetected() {
-	return hasNewTap;
 }
 
 //Return the step count
@@ -1031,51 +1094,24 @@ bool BNO080::readFRSdata(uint16_t recordID, uint8_t startLocation, uint8_t words
 	}
 }
 
-// After power on or completed reset, the BNO will send two messages. One
-// reply and one unsolicited message.
-// 1) Reset message on SHTP channel 1
-// 2) Unsolicited initialization message on SHTP channel 2
-// See 5.2.1 on BNO08X datasheet.
-// Wait For both of these packets specifically up to a max time and exit
-// after both packets are read or max waiting time is reached.
-void BNO080::waitForCompletedReset(uint32_t timeout)
-{
-	uint32_t tInitialResetTimeMS = millis();
-	bool tResetCompleteReceived = false;
-	bool tUnsolicitedResponseReceived = false;
-	shtpHeader[2] = 0; // Make sure we aren't reading old data.
-	shtpData[0] = 0;
-
-	// Wait requested timeout for the two packets. OR Until we get both reset responses.
-	while (millis() - tInitialResetTimeMS < timeout &&
-	       (!tResetCompleteReceived || !tUnsolicitedResponseReceived)) {
-		#ifdef ESP8266
-			ESP.wdtFeed();
-		#endif
-		receivePacket();
-		if (shtpHeader[2] == 1 && shtpData[0] == 0x01) {
-			tResetCompleteReceived = true;
-		}
-		if (shtpHeader[2] == 2 && shtpData[0] == 0xF1) {
-			tUnsolicitedResponseReceived = true;
-		}
-	}
-}
-
 //Send command to reset IC
 //Read all advertisement packets from sensor
+//The sensor has been seen to reset twice if we attempt too much too quickly.
+//This seems to work reliably.
 void BNO080::softReset(void)
 {
-	// after power-on sensor is resetting by itself
-	// let's handle that POTENTIAL reset with shorter timeout
-	// in case sensor was not resetted - like after issuing RESET command
-	waitForCompletedReset(1000);
 	shtpData[0] = 1; //Reset
 
 	//Attempt to start communication with sensor
 	sendPacket(CHANNEL_EXECUTABLE, 1); //Transmit packet on channel 1, 1 byte
-	// now that reset should occur for sure, so let's try with longer timeout
-	waitForCompletedReset(5000);
+
+	//Read all incoming data and flush it
+	delay(50);
+	while (receivePacket() == true)
+		; //delay(1);
+	delay(50);
+	while (receivePacket() == true)
+		; //delay(1);
 }
 
 //Set the operating mode to "On"
@@ -1114,6 +1150,16 @@ void BNO080::modeSleep(void)
 		; //delay(1);
 }
 
+// Indicates if we've received a Reset Complete packet. Once it's been read, 
+// the state will reset to false until another Reset Complete packet is found. 
+bool BNO080::hasReset() {
+	if (_hasReset) {
+		_hasReset = false;
+		return true;
+	}
+	return false; 
+}
+
 //Get the reason for the last reset
 //1 = POR, 2 = Internal reset, 3 = Watchdog, 4 = External reset, 5 = Other
 uint8_t BNO080::resetReason()
@@ -1136,35 +1182,11 @@ uint8_t BNO080::resetReason()
 	return (0);
 }
 
-//Get the last error if it exists
-BNO080Error BNO080::readError()
-{
-	sendCommand(COMMAND_ERRORS);
-
-	BNO080Error err;
-	err.error_source = 255;
-
-	//Now we wait for response
-	if (receivePacket() == true)
-	{
-		if (shtpData[0] == SHTP_REPORT_COMMAND_RESPONSE && shtpData[2] == COMMAND_ERRORS)
-		{
-			err.severity = shtpData[5];
-			err.error_sequence_number = shtpData[6];
-			err.error_source = shtpData[7];
-			err.error = shtpData[8];
-			err.error_module = shtpData[9];
-			err.error_code = shtpData[10];
-		}
-	}
-
-	return err;
-}
-
 //Given a register value and a Q point, convert to float
 //See https://en.wikipedia.org/wiki/Q_(number_format)
 float BNO080::qToFloat(int16_t fixedPointValue, uint8_t qPoint)
 {
+
 	float qFloat = fixedPointValue;
 	qFloat *= pow(2, qPoint * -1);
 	return (qFloat);
@@ -1200,21 +1222,28 @@ void BNO080::enableAccelerometer(uint16_t timeBetweenReports)
 	setFeatureCommand(SENSOR_REPORTID_ACCELEROMETER, timeBetweenReports);
 }
 
-//Sends the packet to enable the gravity
-void BNO080::enableGravity(uint16_t timeBetweenReports)
-{
-	setFeatureCommand(SENSOR_REPORTID_GRAVITY, timeBetweenReports);
-}
 //Sends the packet to enable the accelerometer
 void BNO080::enableLinearAccelerometer(uint16_t timeBetweenReports)
 {
 	setFeatureCommand(SENSOR_REPORTID_LINEAR_ACCELERATION, timeBetweenReports);
 }
 
+//Sends the packet to enable the gravity vector
+void BNO080::enableGravity(uint16_t timeBetweenReports)
+{
+	setFeatureCommand(SENSOR_REPORTID_GRAVITY, timeBetweenReports);
+}
+
 //Sends the packet to enable the gyro
 void BNO080::enableGyro(uint16_t timeBetweenReports)
 {
 	setFeatureCommand(SENSOR_REPORTID_GYROSCOPE, timeBetweenReports);
+}
+
+//Sends the packet to enable the uncalibrated gyro
+void BNO080::enableUncalibratedGyro(uint16_t timeBetweenReports)
+{
+	setFeatureCommand(SENSOR_REPORTID_UNCALIBRATED_GYRO, timeBetweenReports);
 }
 
 //Sends the packet to enable the magnetometer
@@ -1276,9 +1305,39 @@ void BNO080::enableActivityClassifier(uint16_t timeBetweenReports, uint32_t acti
 	setFeatureCommand(SENSOR_REPORTID_PERSONAL_ACTIVITY_CLASSIFIER, timeBetweenReports, activitiesToEnable);
 }
 
+//Sends the commands to begin calibration of the accelerometer
+void BNO080::calibrateAccelerometer()
+{
+	sendCalibrateCommand(CALIBRATE_ACCEL);
+}
+
+//Sends the commands to begin calibration of the gyro
+void BNO080::calibrateGyro()
+{
+	sendCalibrateCommand(CALIBRATE_GYRO);
+}
+
+//Sends the commands to begin calibration of the magnetometer
+void BNO080::calibrateMagnetometer()
+{
+	sendCalibrateCommand(CALIBRATE_MAG);
+}
+
+//Sends the commands to begin calibration of the planar accelerometer
+void BNO080::calibratePlanarAccelerometer()
+{
+	sendCalibrateCommand(CALIBRATE_PLANAR_ACCEL);
+}
+
+//See 2.2 of the Calibration Procedure document 1000-4044
+void BNO080::calibrateAll()
+{
+	sendCalibrateCommand(CALIBRATE_ACCEL_GYRO_MAG);
+}
+
 void BNO080::endCalibration()
 {
-	sendCalibrateCommand(0); //Disables all calibrations
+	sendCalibrateCommand(CALIBRATE_STOP); //Disables all calibrations
 }
 
 //See page 51 of reference manual - ME Calibration Response
@@ -1288,6 +1347,21 @@ boolean BNO080::calibrationComplete()
 	if (calibrationStatus == 0)
 		return (true);
 	return (false);
+}
+
+void BNO080::tareNow(bool zAxis, uint8_t rotationVectorBasis)
+{
+	sendTareCommand(TARE_NOW, zAxis ? TARE_AXIS_Z : TARE_AXIS_ALL, rotationVectorBasis);
+}
+
+void BNO080::saveTare()
+{
+	sendTareCommand(TARE_PERSIST);
+}
+
+void BNO080::clearTare()
+{
+	sendTareCommand(TARE_SET_REORIENTATION);
 }
 
 //Given a sensor's report ID, this tells the BNO080 to begin reporting the values
@@ -1350,40 +1424,62 @@ void BNO080::sendCommand(uint8_t command)
 
 //This tells the BNO080 to begin calibrating
 //See page 50 of reference manual and the 1000-4044 calibration doc
-//The argument is a set of binary flags see SH2_CAL_ACCEL
 void BNO080::sendCalibrateCommand(uint8_t thingToCalibrate)
 {
-	/*
-	shtpData[3] = 0; //P0 - Accel Cal Enable
-	shtpData[4] = 0; //P1 - Gyro In-Hand Cal Enable
+	/*shtpData[3] = 0; //P0 - Accel Cal Enable
+	shtpData[4] = 0; //P1 - Gyro Cal Enable
 	shtpData[5] = 0; //P2 - Mag Cal Enable
 	shtpData[6] = 0; //P3 - Subcommand 0x00
 	shtpData[7] = 0; //P4 - Planar Accel Cal Enable
-	shtpData[8] = 0; //P5 - Gyro On-Table Cal Enable
+	shtpData[8] = 0; //P5 - Reserved
 	shtpData[9] = 0; //P6 - Reserved
 	shtpData[10] = 0; //P7 - Reserved
-	shtpData[11] = 0; //P8 - Reserved
-	*/
+	shtpData[11] = 0; //P8 - Reserved*/
 
 	for (uint8_t x = 3; x < 12; x++) //Clear this section of the shtpData array
 		shtpData[x] = 0;
 
-	if ((thingToCalibrate & SH2_CAL_ACCEL) > 1)
+	if (thingToCalibrate == CALIBRATE_ACCEL)
 		shtpData[3] = 1;
-	if ((thingToCalibrate & SH2_CAL_GYRO_IN_HAND) > 1)
+	else if (thingToCalibrate == CALIBRATE_GYRO)
 		shtpData[4] = 1;
-	if ((thingToCalibrate & SH2_CAL_MAG) > 1)
+	else if (thingToCalibrate == CALIBRATE_MAG)
 		shtpData[5] = 1;
-	if ((thingToCalibrate & SH2_CAL_PLANAR) > 1)
+	else if (thingToCalibrate == CALIBRATE_PLANAR_ACCEL)
 		shtpData[7] = 1;
-	if ((thingToCalibrate & SH2_CAL_ON_TABLE) > 1)
-		shtpData[8] = 1;
+	else if (thingToCalibrate == CALIBRATE_ACCEL_GYRO_MAG)
+	{
+		shtpData[3] = 1;
+		shtpData[4] = 1;
+		shtpData[5] = 1;
+	}
+	else if (thingToCalibrate == CALIBRATE_STOP)
+	{
+		; //Do nothing, bytes are set to zero
+	}
 
 	//Make the internal calStatus variable non-zero (operation failed) so that user can test while we wait
 	calibrationStatus = 1;
 
 	//Using this shtpData packet, send a command
 	sendCommand(COMMAND_ME_CALIBRATE);
+}
+
+void BNO080::sendTareCommand(uint8_t command, uint8_t axis, uint8_t rotationVectorBasis)
+{
+	for (uint8_t x = 3; x < 12; x++) //Clear this section of the shtpData array
+		shtpData[x] = 0;
+
+	shtpData[3] = command;
+	
+	if (command == TARE_NOW)
+	{
+		shtpData[4] = axis; // axis setting
+		shtpData[5] = rotationVectorBasis; // rotation vector
+	}
+	
+	//Using this shtpData packet, send a command
+	sendCommand(COMMAND_TARE);
 }
 
 //Request ME Calibration Status from BNO080
@@ -1434,7 +1530,6 @@ void BNO080::saveCalibration()
 //Returns false if failed
 boolean BNO080::waitForI2C()
 {
-	i2cTimedOut = false;
 	for (uint8_t counter = 0; counter < 100; counter++) //Don't got more than 255
 	{
 		if (_i2cPort->available() > 0)
@@ -1444,13 +1539,7 @@ boolean BNO080::waitForI2C()
 
 	if (_printDebug == true)
 		_debugPort->println(F("I2C timeout"));
-	i2cTimedOut = true;
 	return (false);
-}
-
-boolean BNO080::I2CTimedOut()
-{
-	return i2cTimedOut;
 }
 
 //Blocking wait for BNO080 to assert (pull low) the INT pin
@@ -1566,6 +1655,15 @@ boolean BNO080::receivePacket(void)
 		getData(dataLength);
 	}
 
+	// Quickly check for reset complete packet. No need for a seperate parser.
+	// This function is also called after soft reset, so we need to catch this
+	// packet here otherwise we need to check for the reset packet in multiple
+	// places.
+	if (shtpHeader[2] == CHANNEL_EXECUTABLE && shtpData[0] == EXECUTABLE_RESET_COMPLETE) 
+	{
+		_hasReset = true;
+	} 
+
 	return (true); //We're done!
 }
 
@@ -1580,8 +1678,8 @@ boolean BNO080::getData(uint16_t bytesRemaining)
 	while (bytesRemaining > 0)
 	{
 		uint16_t numberOfBytesToRead = bytesRemaining;
-		if (numberOfBytesToRead > (BNO_I2C_BUFFER_LENGTH - 4))
-			numberOfBytesToRead = (BNO_I2C_BUFFER_LENGTH - 4);
+		if (numberOfBytesToRead > (I2C_BUFFER_LENGTH - 4))
+			numberOfBytesToRead = (I2C_BUFFER_LENGTH - 4);
 
 		_i2cPort->requestFrom((uint8_t)_deviceAddress, (size_t)(numberOfBytesToRead + 4));
 		if (waitForI2C() == false)
@@ -1646,7 +1744,7 @@ boolean BNO080::sendPacket(uint8_t channelNumber, uint8_t dataLength)
 	}
 	else //Do I2C
 	{
-		//if(packetLength > BNO_I2C_BUFFER_LENGTH) return(false); //You are trying to send too much. Break into smaller packets.
+		//if(packetLength > I2C_BUFFER_LENGTH) return(false); //You are trying to send too much. Break into smaller packets.
 
 		_i2cPort->beginTransmission(_deviceAddress);
 

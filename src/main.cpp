@@ -3,6 +3,7 @@
 #include <quat.h>
 #include <Wire.h>
 #include "sensor/sensor.h"
+#include "serial/serial.h"
 
 Sensor::Sensor sensor;
 
@@ -15,8 +16,10 @@ void setup() {
   Serial.println("BNO085 Test");
 
   sensor.setup();
+  Command::setUp();
 }
 
 void loop() {
   sensor.update();
+  Command::update();
 }
