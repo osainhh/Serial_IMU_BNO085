@@ -4,6 +4,6 @@
 A SerialUSB-IMU-Device. XIAO ESP32C3 + BNO085
 
 ## Format
-gyro.x,gyro.y,gyro.z,accel.x,accel.y,accel.z,Mag.x,Mag.y,Mag.z
+quat.i,quat.j,quat.k,quat.acc,gyro.x,gyro.y,gyro.z,gyro.acc,accel.x,accel.y,accel.z,accel.acc,Mag.x,Mag.y,Mag.z,Mag.acc
 
 Accel is LinerAccel.
