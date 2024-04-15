@@ -44,6 +44,7 @@ namespace Sensor {
         Serial.print(m.y,2);
         Serial.print(F(","));
         Serial.print(m.z, 2);
+        Serial.print(F(","));
         printAccuracyLevel(m.acc);
 
         Serial.println();
@@ -53,6 +54,7 @@ namespace Sensor {
         r->i = imu.getQuatI();
         r->j = imu.getQuatJ();
         r->k = imu.getQuatK();
+        r->r = imu.getQuatReal();
         r->acc = imu.getQuatAccuracy();
     }
 

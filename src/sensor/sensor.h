@@ -11,6 +11,7 @@ struct sRot {
     float i;
     float j;
     float k;
+    float r;
     byte acc;
 };
 
