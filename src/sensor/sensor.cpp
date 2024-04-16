@@ -1,4 +1,5 @@
 #include "sensor.h"
+#include "led/led.h"
 
 namespace Sensor {
     void printAccuracyLevel(byte acc) {
@@ -94,6 +95,7 @@ namespace Sensor {
     }
 
     void Sensor::setup() {
+        LED::led_off();
         Wire.end(); 
 
         Wire.flush();
@@ -110,6 +112,8 @@ namespace Sensor {
 
         imu.calibrateAll();
         Serial.println(F("BNO085 Ready"));
+
+        LED::led_on();
 
     }
 

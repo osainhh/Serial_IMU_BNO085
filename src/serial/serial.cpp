@@ -14,10 +14,10 @@ namespace Command {
     }
 
     void setUp() {
-        //cmdCallbacks.addCmd("REBOOT", &cmdReboot);
+        cmdCallbacks.addCmd("REBOOT", &cmdReboot);
     }
 
-    void update() {
-        //cmdCallbacks.updateCmdProcessing(&cmdParser, &cmdBuffer, &Serial);
+    void Update() {
+        cmdCallbacks.updateCmdProcessing(&cmdParser, &cmdBuffer, &Serial);
     }
 }
