@@ -36,6 +36,12 @@ struct sMag {
     byte acc;
 };
 
+struct sAng {
+    float roll;
+    float pitch;
+    float yaw;
+};
+
 namespace Sensor {
     class Sensor {
         public:
@@ -48,10 +54,12 @@ namespace Sensor {
             sGyro gyro;
             sAccel accel;
             sMag mag;
-            void sendData_Serial(sRot r, sGyro g, sAccel a, sMag m);
+            sAng angle;
+            void sendData_Serial(sRot r, sGyro g, sAccel a, sMag m, sAng ang);
             void getRot(sRot *r);
             void getGyro(sGyro *g);
             void getAccel(sAccel *a);
             void getMag(sMag *m);
+            void getAngle(sAng *ang);
     };
 };

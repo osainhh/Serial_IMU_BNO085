@@ -7,7 +7,7 @@ namespace Sensor {
         else if (acc == 2) Serial.print(F("Medium"));
         else if (acc == 3) Serial.print(F("HIGH"));
     }
-    void Sensor::sendData_Serial(sRot r, sGyro g, sAccel a, sMag m) {
+    void Sensor::sendData_Serial(sRot r, sGyro g, sAccel a, sMag m, sAng ang) {
         // Rot Quat
         Serial.print(r.i, 2);
         Serial.print(F(","));
@@ -46,6 +46,14 @@ namespace Sensor {
         Serial.print(m.z, 2);
         Serial.print(F(","));
         printAccuracyLevel(m.acc);
+        Serial.print(F(","));
+
+        // Angle
+        Serial.print(ang.roll, 1);
+        Serial.print(F(","));
+        Serial.print(ang.pitch,1);
+        Serial.print(F(","));
+        Serial.print(ang.yaw, 1);
 
         Serial.println();
     }
@@ -79,6 +87,12 @@ namespace Sensor {
         m->acc = imu.getMagAccuracy();
     }
 
+    void Sensor::getAngle(sAng *ang) {
+        ang->roll = (imu.getRoll()) * 180.0/PI;
+        ang->pitch = (imu.getPitch()) * 180.0/PI;
+        ang->yaw = (imu.getYaw()) * 180.0/PI;
+    }
+
     void Sensor::setup() {
         Wire.end(); 
 
@@ -105,7 +119,8 @@ namespace Sensor {
             getGyro(&gyro);
             getAccel(&accel);
             getMag(&mag);
-            sendData_Serial(rot, gyro, accel, mag);
+            getAngle(&angle);
+            sendData_Serial(rot, gyro, accel, mag, angle);
         }
     }
 }
