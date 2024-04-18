@@ -94,6 +94,35 @@ namespace Sensor {
         ang->yaw = (imu.getYaw()) * 180.0/PI;
     }
 
+    void Sensor::sensor_enable() {
+        Serial.println("Wait for Enable Command...");
+        while(1) {
+            if (Serial.available()) {
+                data = Serial.read();
+                Serial.println(data);
+                ds = String(data, BIN).substring(2,6);
+                Serial.println(ds);
+                if (ds.length() <= 4) {
+                    break;
+                }
+            }
+        }
+
+        if (ds[0]=='1') {
+            imu.enableRotationVector(50);
+        }
+        if (ds[1]=='1') {
+            imu.enableGyro(50);
+        }
+        if (ds[2]=='1') {
+            imu.enableAccelerometer(50);
+        }
+        if (ds[3]=='1') {
+            imu.enableMagnetometer(50);
+        }
+
+    }
+
     void Sensor::setup() {
         LED::led_off();
         Wire.end(); 
@@ -105,6 +134,7 @@ namespace Sensor {
         Wire.setClock(I2C_SPEED);
         delay(500);
 
+        //sensor_enable();
         imu.enableMagnetometer(50);
         imu.enableRotationVector(50);
         imu.enableGyro(50);

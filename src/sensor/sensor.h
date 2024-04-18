@@ -55,11 +55,14 @@ namespace Sensor {
             sAccel accel;
             sMag mag;
             sAng angle;
+            uint8_t data;
+            String ds;
             void sendData_Serial(sRot r, sGyro g, sAccel a, sMag m, sAng ang);
             void getRot(sRot *r);
             void getGyro(sGyro *g);
             void getAccel(sAccel *a);
             void getMag(sMag *m);
             void getAngle(sAng *ang);
+            void sensor_enable();
     };
 };
