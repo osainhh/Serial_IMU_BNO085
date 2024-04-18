@@ -15,7 +15,7 @@ void setup() {
   delay(2000);
 
   Serial.println();
-  Serial.println("BNO085 Test");
+  //Serial.println("BNO085 Test");
 
   sensor.setup();
   Command::setUp();
