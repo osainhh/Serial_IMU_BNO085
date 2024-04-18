@@ -75,10 +75,10 @@ namespace Sensor {
     }
 
     void Sensor::getAccel(sAccel *a) {
-        a->x = imu.getLinAccelX();
-        a->y = imu.getLinAccelY();
-        a->z = imu.getLinAccelZ();
-        a->acc = imu.getLinAccelAccuracy();
+        a->x = imu.getAccelX();
+        a->y = imu.getAccelY();
+        a->z = imu.getAccelZ();
+        a->acc = imu.getAccelAccuracy();
     }
 
     void Sensor::getMag(sMag *m) {
@@ -105,25 +105,25 @@ namespace Sensor {
         Wire.setClock(I2C_SPEED);
         delay(500);
 
+        imu.enableMagnetometer(50);
         imu.enableRotationVector(50);
         imu.enableGyro(50);
-        imu.enableLinearAccelerometer(50);
-        imu.enableMagnetometer(50);
-
+        imu.enableAccelerometer(50);
+        
         imu.calibrateAll();
-        Serial.println(F("BNO085 Ready"));
-
+        //Serial.println(F("BNO085 Ready"));
         LED::led_on();
 
     }
 
     void Sensor::update() {
         if (imu.dataAvailable() == true) {
+            getMag(&mag);
             getRot(&rot);
             getGyro(&gyro);
-            getAccel(&accel);
-            getMag(&mag);
             getAngle(&angle);
+            getAccel(&accel);
+
             sendData_Serial(rot, gyro, accel, mag, angle);
         }
     }
